@@ -1,0 +1,12 @@
+event,count
+"<a, b, c, d, e, f>2",2
+"<a, b, c, d, e, g>3",3
+"<a, b, c, d, i, c, d, e, f>3",3
+"<a, b, c, d, i, c, d, e, g>",1
+"<a, c, d, e, f>",1
+"<a, c, d, e, g>2",2
+"<a, b, c, d, e, h, f>",1
+"<a, b, c, d, h, e, f>",1
+"<a, b, c, d, e, h, g>",1
+"<a, b, c, d, h, e, g>",1
+"<a, b, j>",1
