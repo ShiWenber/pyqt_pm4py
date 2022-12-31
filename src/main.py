@@ -15,6 +15,7 @@ from shutil import copy
 import pm4py
 import os
 import pandas
+import graphviz
 from ui.ui_mainwindow import Ui_MainWindow
 
 # 工具类
@@ -45,8 +46,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionimport_xes.triggered.connect(self.pop_up_open_files_window)
         self.actionimport_csv.triggered.connect(self.pop_up_open_files_window)
         self.actionopen_data_dir.triggered.connect(self.open_dir)
+        self.actionexport_as_png.triggered.connect(self.export_as_png)
 
         self.pushButton.clicked.connect(self.pm4py_process_mining)
+
+    def export_as_png(self):
+        pathName, fileType = QFileDialog.getSaveFileName(
+            self, "保存文件", "./", "PNG Files (*.png)")
+        copy("./res/" + self.comboBox.currentText() + ".png", pathName)
+        return pathName, fileType
 
     def pop_up_open_files_window(self):
         fileNames, fileType = QFileDialog.getOpenFileNames(
@@ -72,7 +80,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # log = pm4py.format_dataframe(log, case_id='case', activity_key='event', timestamp_key='timestamp')
             # start_activities = pm4py.get_start_activities(log)
             # end_activities = pm4py.get_end_activities(log)
-            log = pandas.read_csv(log_path, sep=";")
+            log = pandas.read_csv(log_path, sep=",")
             print(log)
             print(log.columns)
             print(log["case_id"])
@@ -81,17 +89,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print(type(log["case_id"][0]))
             log = pm4py.format_dataframe(
                 log, case_id='case_id', activity_key='activity', timestamp_key='timestamp')
-            start_activities = pm4py.get_start_activities(log)
-            end_activities = pm4py.get_end_activities(log)
-            print("Start activities: {}\nEnd activities: {}".format(
-                start_activities, end_activities))
-
         elif log_path.endswith(".xes"):
             log = pm4py.read_xes(log_path)
-            start_activities = pm4py.get_start_activities(log)
-            end_activities = pm4py.get_end_activities(log)
-            print("Start activities: {}\nEnd activities: {}".format(
-                start_activities, end_activities))
 
         # 选择算法
         algorithm = self.comboBox.currentText()
@@ -100,28 +99,52 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         net = None
         initial_marking = None
         final_marking = None
-        if algorithm == "alpha_miner":
-            net, initial_marking, final_marking = pm4py.discover_petri_net_alpha(
-                log, activity_key="activity", timestamp_key="timestamp", case_id_key="case_id")
-            print(process_model)
-        elif algorithm == "heuristics_miner":
-            process_model = pm4py.discover_heuristics_net(log)
-        elif algorithm == "alpha_miner_plus":
-            process_model = pm4py.discover_petri_net_alpha_plus(log)
-        elif algorithm == "inductive_miner":
-            process_model = pm4py.discover_petri_net_inductive(log)
-        else:
-            return
+        if log_path.endswith(".csv"):
+            if algorithm == "alpha_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_alpha(
+                    log, activity_key="activity", timestamp_key="timestamp", case_id_key="case_id")
+            elif algorithm == "heuristics_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_heuristics(
+                    log, activity_key="activity", timestamp_key="timestamp", case_id_key="case_id")
+                # process_model = pm4py.discover_heuristics_net(log)
+            elif algorithm == "alpha_miner_plus":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_alpha_plus(
+                    log, activity_key="activity", timestamp_key="timestamp", case_id_key="case_id")
+                # process_model = pm4py.discover_petri_net_alpha_plus(log)
+            elif algorithm == "inductive_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_inductive(
+                    log, activity_key="activity", timestamp_key="timestamp", case_id_key="case_id")
+            else:
+                return
+        if log_path.endswith(".xes"):
+            if algorithm == "alpha_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_alpha(
+                    log)
+            elif algorithm == "heuristics_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_heuristics(
+                    log)
+                # process_model = pm4py.discover_heuristics_net(log)
+            elif algorithm == "alpha_miner_plus":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_alpha_plus(
+                    log)
+                # process_model = pm4py.discover_petri_net_alpha_plus(log)
+            elif algorithm == "inductive_miner":
+                net, initial_marking, final_marking = pm4py.discover_petri_net_inductive(
+                    log)
+            else:
+                return
+         
         # 将模型导出为图片
         gviz = pm4py.visualization.petri_net.visualizer.apply(
             net, initial_marking, final_marking)
-        # gviz = pm4py.visualization.petri_net.visualizer.apply(process_model, "res/" + algorithm + ".png")
-        # gviz = pm4py.visualization.petri_net.visualizer.apply(process_model, process_model["initial_marking"], process_model["final_marking"])
         # print(gviz)
-        # 保存图片
-        gviz.save("./res/" + algorithm)
+        # 保存为图片
+        # gviz.save("./res/" + algorithm + ".gv")
+        gviz.render("./res/" + algorithm, format="png")
+        # os.popen("dot -Tpng ./res/" + algorithm + ".gv -o ./res/" + algorithm + ".png")
         # 显示图片
         # pm4py.visualization.petri_net.visualizer.view(gviz)
+
         # 显示在GraphicsView中
         pixmap = QPixmap("./res/" + algorithm + ".png")
         scene = QGraphicsScene()
@@ -158,28 +181,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 设置允许使用鼠标滚轮缩放
         self.graphicsView.setRenderHint(QPainter.Antialiasing)
         self.graphicsView.setRenderHint(QPainter.SmoothPixmapTransform)
-        self.graphicsView.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+        self.graphicsView.setTransformationAnchor(
+            QGraphicsView.AnchorUnderMouse)
         self.graphicsView.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
         # 设置滚动条
         # self.graphicsView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         # self.graphicsView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.graphicsView.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.graphicsView.setOptimizationFlag(QGraphicsView.DontAdjustForAntialiasing, True)
-        self.graphicsView.setOptimizationFlag(QGraphicsView.DontSavePainterState, True)
-        self.graphicsView.setViewportUpdateMode(QGraphicsView.FullViewportUpdate)
+        self.graphicsView.setOptimizationFlag(
+            QGraphicsView.DontAdjustForAntialiasing, True)
+        self.graphicsView.setOptimizationFlag(
+            QGraphicsView.DontSavePainterState, True)
+        self.graphicsView.setViewportUpdateMode(
+            QGraphicsView.FullViewportUpdate)
         self.graphicsView.setRenderHint(QPainter.HighQualityAntialiasing)
         self.graphicsView.setRenderHint(QPainter.TextAntialiasing)
         self.graphicsView.setRenderHint(QPainter.LosslessImageRendering)
         self.graphicsView.setRenderHint(QPainter.NonCosmeticDefaultPen)
         self.graphicsView.setInteractive(True)
         self.graphicsView.setMouseTracking(True)
+
     def wheelEvent(self, event):
         # 如果鼠标滚轮向上滚动，放大图片
         if event.angleDelta().y() > 0:
             self.graphicsView.scale(1.1, 1.1)
         else:
             self.graphicsView.scale(0.9, 0.9)
-        
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
